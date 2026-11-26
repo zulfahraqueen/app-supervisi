@@ -4,8 +4,12 @@
  * Google Apps Script Backend (Kode.gs) Lengkap
  * ============================================================================
  * Fitur:
- * - Auto-setup seluruh sheet: Users, Guru, Aspek, Penilaian, CatatanTahap,
- *   Pengaturan, dan Rekap (otomatis terhitung).
+ * - Auto-setup seluruh sheet: Users, Guru, PoinBerkas, Aspek, Penilaian,
+ *   CatatanTahap, Pengaturan, dan Rekap (otomatis terhitung).
+ * - Aman dijalankan ulang pada Spreadsheet yang sudah terisi (tidak menimpa
+ *   data lama & otomatis menambah kolom baru seperti cekBerkas di kanan).
+ * - Mendukung CRUD Poin Pemeriksaan Berkas (Admin) & checklist per poin
+ *   (Ada / Tidak Ada) oleh Kepala Sekolah.
  * - Mendukung instrumen berbeda berdasarkan role mata pelajaran:
  *   Umum vs Bimbingan dan Konseling (BK).
  * - Mendukung tipe penilaian skor (1-4) & teks (Dialog Refleksi / Sarpras BK).
@@ -114,7 +118,8 @@ var MAX_CELL_CHARS = 45000;
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('SADIG Database')
-    .addItem('Inisialisasi / Isi Data Awal Sheet', 'setupDatabase')
+    .addItem('Inisialisasi / Perbarui Struktur Sheet (Aman)', 'setupDatabase')
+    .addItem('Tambahkan Poin Berkas Bawaan yang Belum Ada', 'menuSeedPoinBerkas')
     .addItem('Tambahkan Template Aspek BK yang Belum Ada', 'menuSeedBkAspects')
     .addItem('Hitung Ulang Sheet Rekap', 'menuRebuildRekap')
     .addToUi();
@@ -139,36 +144,64 @@ function getHeadersForSheet_(sheetName, headers) {
   throw new Error('Definisi header untuk sheet "' + sheetName + '" tidak ditemukan.');
 }
 
+/**
+ * Memastikan sheet & seluruh header tersedia secara non-destruktif.
+ * Header baru (mis. cekBerkas) otomatis ditambahkan di kolom paling kanan
+ * tanpa menggeser atau menimpa kolom data lama.
+ */
 function ensureSheet_(ss, sheetName, headers) {
   headers = getHeadersForSheet_(sheetName, headers);
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
   }
-  if (sheet.getLastRow() === 0) {
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+
+  if (lastRow === 0 || lastCol === 0) {
     var initRange = sheet.getRange(1, 1, 1, headers.length);
     initRange.setNumberFormat('@');
     initRange.setValues([headers]);
     formatHeaderRow_(sheet, headers.length);
-  } else {
-    var currentHeaders = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
-    var emptyHeader = currentHeaders.every(function (c) {
-      return String(c || '').trim() === '';
-    });
-    var needsHeaderUpdate = false;
-    for (var hi = 0; hi < headers.length; hi++) {
-      if (String(currentHeaders[hi] || '').trim() === '') {
-        needsHeaderUpdate = true;
-        break;
-      }
-    }
-    if (emptyHeader || needsHeaderUpdate) {
-      var headerRange = sheet.getRange(1, 1, 1, headers.length);
-      headerRange.setNumberFormat('@');
-      headerRange.setValues([headers]);
-      formatHeaderRow_(sheet, headers.length);
-    }
+    return sheet;
   }
+
+  var existingHeaders = sheet
+    .getRange(1, 1, 1, lastCol)
+    .getValues()[0]
+    .map(function (c) {
+      return String(c || '').trim();
+    });
+
+  var allBlank = existingHeaders.every(function (c) {
+    return c === '';
+  });
+
+  if (allBlank) {
+    var headerRange = sheet.getRange(1, 1, 1, headers.length);
+    headerRange.setNumberFormat('@');
+    headerRange.setValues([headers]);
+    formatHeaderRow_(sheet, headers.length);
+    return sheet;
+  }
+
+  var addedCount = 0;
+  headers.forEach(function (expectedCol) {
+    if (existingHeaders.indexOf(expectedCol) === -1) {
+      existingHeaders.push(expectedCol);
+      var targetCol = existingHeaders.length;
+      var newCell = sheet.getRange(1, targetCol);
+      newCell.setNumberFormat('@');
+      newCell.setValue(expectedCol);
+      addedCount++;
+    }
+  });
+
+  if (addedCount > 0) {
+    formatHeaderRow_(sheet, existingHeaders.length);
+  }
+
   return sheet;
 }
 
@@ -234,6 +267,7 @@ function setupDatabaseInternal_(ss) {
   }
 
   syncRekapSheet_(ss);
+  SpreadsheetApp.flush();
 }
 
 function setupDatabase() {
@@ -243,10 +277,31 @@ function setupDatabase() {
     var ss = getSpreadsheet_();
     setupDatabaseInternal_(ss);
     try {
-      SpreadsheetApp.getUi().alert('Inisialisasi database SADIG pada Spreadsheet berhasil!');
+      SpreadsheetApp.getUi().alert(
+        'Inisialisasi & pembaruan struktur database SADIG berhasil tanpa menimpa data lama!'
+      );
     } catch (e) {
       // Abaikan jika dijalankan dari editor / tanpa UI Spreadsheet
     }
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function menuSeedPoinBerkas() {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var ss = getSpreadsheet_();
+    ensureAllSheetsExist_(ss);
+    var added = seedPoinBerkasInternal_(ss);
+    try {
+      SpreadsheetApp.getUi().alert(
+        added > 0
+          ? added + ' poin pemeriksaan berkas bawaan berhasil ditambahkan ke sheet PoinBerkas.'
+          : 'Seluruh poin pemeriksaan berkas bawaan sudah tersedia di sheet PoinBerkas.'
+      );
+    } catch (e) {}
   } finally {
     lock.releaseLock();
   }
@@ -260,11 +315,13 @@ function menuSeedBkAspects() {
     ensureAllSheetsExist_(ss);
     var added = seedBkAspectsInternal_(ss);
     syncRekapSheet_(ss);
-    SpreadsheetApp.getUi().alert(
-      added > 0
-        ? added + ' butir instrumen Administrasi BK berhasil ditambahkan ke sheet Aspek.'
-        : 'Seluruh template instrumen Administrasi BK sudah tersedia di sheet Aspek.'
-    );
+    try {
+      SpreadsheetApp.getUi().alert(
+        added > 0
+          ? added + ' butir instrumen Administrasi BK berhasil ditambahkan ke sheet Aspek.'
+          : 'Seluruh template instrumen Administrasi BK sudah tersedia di sheet Aspek.'
+      );
+    } catch (e) {}
   } finally {
     lock.releaseLock();
   }
@@ -277,7 +334,9 @@ function menuRebuildRekap() {
     var ss = getSpreadsheet_();
     ensureAllSheetsExist_(ss);
     syncRekapSheet_(ss);
-    SpreadsheetApp.getUi().alert('Sheet Rekap berhasil dihitung ulang.');
+    try {
+      SpreadsheetApp.getUi().alert('Sheet Rekap berhasil dihitung ulang.');
+    } catch (e) {}
   } finally {
     lock.releaseLock();
   }
@@ -286,6 +345,7 @@ function menuRebuildRekap() {
 function ensureAllSheetsExist_(ss) {
   var pengSheet = ss.getSheetByName(SHEETS.PENGATURAN);
   var userSheet = ss.getSheetByName(SHEETS.USERS);
+  var poinSheetExisted = !!ss.getSheetByName(SHEETS.POIN_BERKAS);
   var needInitialSeed =
     !pengSheet || pengSheet.getLastRow() <= 1 || !userSheet || userSheet.getLastRow() <= 1;
 
@@ -296,16 +356,14 @@ function ensureAllSheetsExist_(ss) {
 
   if (needInitialSeed) {
     setupDatabaseInternal_(ss);
-  } else {
-    var poinSheet = ss.getSheetByName(SHEETS.POIN_BERKAS);
-    if (poinSheet && poinSheet.getLastRow() <= 1) {
-      writeObjectsToSheet_(
-        ss,
-        SHEETS.POIN_BERKAS,
-        HEADERS[SHEETS.POIN_BERKAS],
-        getDefaultPoinBerkas_()
-      );
-    }
+  } else if (!poinSheetExisted) {
+    // Migrasi otomatis Spreadsheet lama yang belum memiliki sheet PoinBerkas
+    writeObjectsToSheet_(
+      ss,
+      SHEETS.POIN_BERKAS,
+      HEADERS[SHEETS.POIN_BERKAS],
+      getDefaultPoinBerkas_()
+    );
   }
 }
 
@@ -647,6 +705,7 @@ function handleSaveGuru_(ss, input) {
       supervisorEmail: String(input.supervisorEmail || emails.supervisorEmail),
       kepsekEmail: emails.kepsekEmail,
       pengawasEmail: emails.pengawasEmail,
+      cekBerkas: {},
     });
   }
 
@@ -713,6 +772,7 @@ function handleBulkImportGuru_(ss, input) {
       supervisorEmail: emails.supervisorEmail,
       kepsekEmail: emails.kepsekEmail,
       pengawasEmail: emails.pengawasEmail,
+      cekBerkas: {},
     });
     added++;
   });
@@ -795,11 +855,13 @@ function handleUploadBerkasGuru_(ss, input) {
 }
 
 function handleVerifikasiKepsek_(ss, input) {
-  var idGuru = String(input.idGuru || input.id || '').trim();
-  var kelengkapanBerkas = String(input.kelengkapanBerkas || 'Belum Ada').trim();
-  var statusBerkas = String(input.statusBerkas || 'Belum Dicek').trim();
+  var idGuru = String(input.idGuru || input.guruId || input.id || '').trim();
   var catatanKepsek = String(input.catatanKepsek || '').trim();
-  var cekBerkas = parseJsonObj_(input.cekBerkas);
+  var rawCek = parseJsonObj_(input.cekBerkas);
+  var cekBerkas = {};
+  Object.keys(rawCek).forEach(function (k) {
+    cekBerkas[k] = rawCek[k] === 'Tidak Ada' ? 'Tidak Ada' : 'Ada';
+  });
 
   var guruList = readGuru_(ss);
   var idx = findIndexByField_(guruList, 'id', idGuru);
@@ -807,10 +869,18 @@ function handleVerifikasiKepsek_(ss, input) {
     return { success: false, message: 'Data guru tidak ditemukan.' };
   }
 
-  if (statusBerkas === 'Disetujui' && kelengkapanBerkas !== 'Ada') {
+  var hasMissingPoint = Object.keys(cekBerkas).some(function (k) {
+    return cekBerkas[k] === 'Tidak Ada';
+  });
+
+  var kelengkapanBerkas = String(input.kelengkapanBerkas || 'Belum Ada').trim();
+  var statusBerkas = String(input.statusBerkas || 'Belum Dicek').trim();
+
+  if (statusBerkas === 'Disetujui' && (kelengkapanBerkas !== 'Ada' || hasMissingPoint)) {
     return {
       success: false,
-      message: 'Berkas harus ditandai "Ada" sebelum memberikan persetujuan (Disetujui).',
+      message:
+        'Seluruh poin pemeriksaan berkas harus bertanda "Ada" sebelum memberikan persetujuan (Disetujui).',
     };
   }
 
@@ -875,6 +945,31 @@ function handleSavePoinBerkas_(ss, input) {
     message: 'Poin pemeriksaan berkas berhasil disimpan.',
     data: buildFullStatePayload_(ss),
   };
+}
+
+function seedPoinBerkasInternal_(ss) {
+  var list = readPoinBerkas_(ss);
+  var existingIds = {};
+  list.forEach(function (item) {
+    existingIds[item.id] = true;
+  });
+
+  var defaults = getDefaultPoinBerkas_();
+  var added = 0;
+  defaults.forEach(function (item) {
+    if (!existingIds[item.id]) {
+      list.push(item);
+      added++;
+    }
+  });
+
+  if (added > 0) {
+    list.sort(function (a, b) {
+      return Number(a.orderIndex || 0) - Number(b.orderIndex || 0);
+    });
+    writeObjectsToSheet_(ss, SHEETS.POIN_BERKAS, HEADERS[SHEETS.POIN_BERKAS], list);
+  }
+  return added;
 }
 
 function handleDeletePoinBerkas_(ss, input) {
@@ -1303,7 +1398,15 @@ function readSheetObjects_(ss, sheetName, headers) {
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) return [];
 
-  var values = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  var lastCol = Math.max(sheet.getLastColumn(), headers.length);
+  var sheetHeaders = sheet
+    .getRange(1, 1, 1, lastCol)
+    .getValues()[0]
+    .map(function (h) {
+      return String(h || '').trim();
+    });
+
+  var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   var result = [];
 
   for (var r = 0; r < values.length; r++) {
@@ -1314,8 +1417,14 @@ function readSheetObjects_(ss, sheetName, headers) {
     if (isBlank) continue;
 
     var obj = {};
-    for (var c = 0; c < headers.length; c++) {
-      obj[headers[c]] = cellStr_(row[c]);
+    headers.forEach(function (h) {
+      obj[h] = '';
+    });
+    for (var c = 0; c < sheetHeaders.length; c++) {
+      var colName = sheetHeaders[c];
+      if (colName) {
+        obj[colName] = cellStr_(row[c]);
+      }
     }
     result.push(obj);
   }
@@ -1325,23 +1434,38 @@ function readSheetObjects_(ss, sheetName, headers) {
 function writeObjectsToSheet_(ss, sheetName, headers, list) {
   headers = getHeadersForSheet_(sheetName, headers);
   var sheet = ensureSheet_(ss, sheetName, headers);
+  var lastCol = Math.max(sheet.getLastColumn(), headers.length);
+  var sheetHeaders = sheet
+    .getRange(1, 1, 1, lastCol)
+    .getValues()[0]
+    .map(function (h, i) {
+      var trimmed = String(h || '').trim();
+      return trimmed || headers[i] || '';
+    });
+
   var lastRow = sheet.getLastRow();
   if (lastRow > 1) {
-    sheet.getRange(2, 1, lastRow - 1, headers.length).clearContent();
+    sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
   }
 
   if (!list || list.length === 0) return;
 
   var rows = list.map(function (obj) {
-    return headers.map(function (h) {
+    return sheetHeaders.map(function (h) {
+      if (!h) return '';
       var val = obj[h];
       if (val === null || val === undefined) return '';
-      if (typeof val === 'object') return JSON.stringify(val);
+      if (
+        Array.isArray(val) ||
+        (typeof val === 'object' && Object.prototype.toString.call(val) !== '[object Date]')
+      ) {
+        return JSON.stringify(val);
+      }
       return String(val);
     });
   });
 
-  var range = sheet.getRange(2, 1, rows.length, headers.length);
+  var range = sheet.getRange(2, 1, rows.length, sheetHeaders.length);
   range.setNumberFormat('@');
   range.setValues(rows);
 }
