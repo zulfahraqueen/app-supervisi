@@ -92,6 +92,10 @@ service cloud.firestore {
         data.updatedAt is timestamp;
     }
 
+    function isValidCekBerkas(val) {
+      return val is map && val.size() <= 50;
+    }
+
     function isValidGuru(data) {
       return data.keys().hasAll([
           'id', 'nip', 'namaGuru', 'mataPelajaran', 'tanggalPelaksanaan', 'supervisor',
@@ -102,7 +106,7 @@ service cloud.firestore {
         data.keys().hasOnly([
           'id', 'nip', 'namaGuru', 'mataPelajaran', 'tanggalPelaksanaan', 'supervisor',
           'nipSupervisor', 'statusBerkas', 'kelengkapanBerkas', 'linkDriveBerkas',
-          'catatanKepsek', 'ownerUid', 'guruEmail', 'supervisorEmail', 'kepsekEmail',
+          'catatanKepsek', 'cekBerkas', 'ownerUid', 'guruEmail', 'supervisorEmail', 'kepsekEmail',
           'pengawasEmail', 'createdAt', 'updatedAt'
         ]) &&
         data.id is string && isValidId(data.id) &&
@@ -117,11 +121,31 @@ service cloud.firestore {
         data.linkDriveBerkas is string && data.linkDriveBerkas.size() <= 500 &&
         (data.linkDriveBerkas == '' || data.linkDriveBerkas.matches('^https?://.*')) &&
         data.catatanKepsek is string && data.catatanKepsek.size() <= 1000 &&
+        (!('cekBerkas' in data) || isValidCekBerkas(data.cekBerkas)) &&
         data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128 &&
         data.guruEmail is string && data.guruEmail.size() <= 200 &&
         data.supervisorEmail is string && data.supervisorEmail.size() <= 200 &&
         data.kepsekEmail is string && data.kepsekEmail.size() <= 200 &&
         data.pengawasEmail is string && data.pengawasEmail.size() <= 200 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPoinBerkas(data) {
+      return data.keys().hasAll([
+          'id', 'nama', 'deskripsi', 'orderIndex', 'publicCatalog',
+          'ownerUid', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'nama', 'deskripsi', 'orderIndex', 'publicCatalog',
+          'ownerUid', 'createdAt', 'updatedAt'
+        ]) &&
+        data.id is string && isValidId(data.id) &&
+        data.nama is string && data.nama.size() >= 1 && data.nama.size() <= 150 &&
+        data.deskripsi is string && data.deskripsi.size() <= 500 &&
+        data.orderIndex is number && data.orderIndex >= 0 && data.orderIndex <= 10000 &&
+        data.publicCatalog is bool &&
+        data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128 &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
@@ -341,6 +365,25 @@ service cloud.firestore {
       allow delete: if isVerified() && isValidId(aspekId) && isAdmin();
     }
 
+    match /poinBerkas/{poinId} {
+      allow get: if isVerified() && isValidId(poinId);
+      allow list: if isVerified() && (isBootstrappedAdmin() || resource.data.publicCatalog == true);
+      allow create: if isVerified() && isValidId(poinId) && isAdmin() &&
+        isValidPoinBerkas(incoming()) &&
+        incoming().id == poinId &&
+        incoming().ownerUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(poinId) && isAdmin() &&
+        isValidPoinBerkas(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['nama', 'deskripsi', 'orderIndex', 'updatedAt']);
+      allow delete: if isVerified() && isValidId(poinId) && isAdmin();
+    }
+
     match /guru/{guruId} {
       allow get: if isVerified() && isValidId(guruId) && (
         isAdmin() ||
@@ -368,7 +411,7 @@ service cloud.firestore {
             incoming().diff(existing()).affectedKeys().hasOnly([
               'nip', 'namaGuru', 'mataPelajaran', 'tanggalPelaksanaan', 'supervisor',
               'nipSupervisor', 'statusBerkas', 'kelengkapanBerkas', 'linkDriveBerkas',
-              'catatanKepsek', 'guruEmail', 'supervisorEmail', 'kepsekEmail',
+              'catatanKepsek', 'cekBerkas', 'guruEmail', 'supervisorEmail', 'kepsekEmail',
               'pengawasEmail', 'updatedAt'
             ])
           ) ||
@@ -377,14 +420,15 @@ service cloud.firestore {
             existing().guruEmail == request.auth.token.email &&
             incoming().statusBerkas == 'Belum Dicek' &&
             incoming().kelengkapanBerkas == 'Belum Ada' &&
-            incoming().diff(existing()).affectedKeys().hasOnly(['linkDriveBerkas', 'statusBerkas', 'kelengkapanBerkas', 'updatedAt'])
+            (!('cekBerkas' in incoming()) || incoming().cekBerkas.size() == 0) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['linkDriveBerkas', 'statusBerkas', 'kelengkapanBerkas', 'cekBerkas', 'updatedAt'])
           ) ||
           (
             // Action: Kepala Sekolah verifies Drive link
             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Kepala Sekolah' &&
             (incoming().statusBerkas != 'Disetujui' || incoming().kelengkapanBerkas == 'Ada') &&
-            incoming().diff(existing()).affectedKeys().hasOnly(['statusBerkas', 'kelengkapanBerkas', 'catatanKepsek', 'updatedAt'])
+            incoming().diff(existing()).affectedKeys().hasOnly(['statusBerkas', 'kelengkapanBerkas', 'catatanKepsek', 'cekBerkas', 'updatedAt'])
           )
         );
       allow delete: if isVerified() && isValidId(guruId) && isAdmin();

@@ -7,9 +7,50 @@ export type UserRole =
 
 export type StatusBerkas = 'Belum Dicek' | 'Disetujui' | 'Ditolak';
 export type KelengkapanBerkas = 'Ada' | 'Belum Ada';
+export type StatusPoinBerkas = 'Ada' | 'Tidak Ada';
 export type TahapSupervisi = 'Persiapan' | 'Pelaksanaan' | 'Evaluasi';
 export type TipePenilaianAspek = 'skor' | 'teks';
 export type TargetMapelAspek = 'Umum' | 'BK';
+
+export interface PoinBerkasItem {
+  id: string;
+  nama: string;
+  deskripsi: string;
+  orderIndex?: number;
+}
+
+export const DEFAULT_POIN_BERKAS: PoinBerkasItem[] = [
+  {
+    id: 'PB1',
+    nama: 'RPP',
+    deskripsi: 'Rencana Pelaksanaan Pembelajaran sesuai fase/kelas yang diampu.',
+    orderIndex: 1,
+  },
+  {
+    id: 'PB2',
+    nama: 'Modul Ajar',
+    deskripsi: 'Modul Ajar Kurikulum Merdeka lengkap dengan tujuan dan langkah pembelajaran.',
+    orderIndex: 2,
+  },
+  {
+    id: 'PB3',
+    nama: 'Alur Tujuan Pembelajaran (ATP)',
+    deskripsi: 'Dokumen CP, TP, dan Alur Tujuan Pembelajaran semester berjalan.',
+    orderIndex: 3,
+  },
+  {
+    id: 'PB4',
+    nama: 'LKPD & Bahan Ajar',
+    deskripsi: 'Lembar Kerja Peserta Didik dan bahan bacaan kontekstual.',
+    orderIndex: 4,
+  },
+  {
+    id: 'PB5',
+    nama: 'Instrumen & Rubrik Asesmen',
+    deskripsi: 'Instrumen asesmen awal, formatif, sumatif, beserta rubrik penilaian.',
+    orderIndex: 5,
+  },
+];
 
 export interface UserAccount {
   id?: string;
@@ -34,6 +75,7 @@ export interface GuruRecord {
   kelengkapanBerkas: KelengkapanBerkas;
   linkDriveBerkas: string;
   catatanKepsek: string;
+  cekBerkas?: Record<string, StatusPoinBerkas>;
   guruEmail?: string;
   supervisorEmail?: string;
   kepsekEmail?: string;
@@ -114,6 +156,7 @@ export interface RekapGuru {
 export interface AppDatabasePayload {
   users: UserAccount[];
   guru: GuruRecord[];
+  poinBerkas: PoinBerkasItem[];
   aspekPersiapan: AspekItem[];
   aspekPelaksanaan: AspekItem[];
   aspekEvaluasi: AspekItem[];

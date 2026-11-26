@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
-import { signInWithPopup } from 'firebase/auth';
 import {
   AlertCircle,
   BookOpen,
-  Cloud,
   Compass,
   Eye,
   EyeOff,
   GraduationCap,
 } from 'lucide-react';
-import { auth, googleProvider } from '../firebase';
 import { loginWithCredentials, type PublicBranding } from '../services/sadigClient';
 import type { UserAccount } from '../types';
 import { PemdaCrestSvg, TutWuriCrestSvg } from './SchoolCrest';
@@ -21,7 +18,11 @@ interface LoginViewProps {
   onNotify?: (type: 'success' | 'error', title: string, message: string) => void;
 }
 
-export function LoginView({ branding, onLoginSuccess, onNotify }: LoginViewProps) {
+export function LoginView({
+  branding,
+  onLoginSuccess,
+  onNotify,
+}: LoginViewProps) {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -46,27 +47,6 @@ export function LoginView({ branding, onLoginSuccess, onNotify }: LoginViewProps
       const msg = 'Terjadi gangguan koneksi saat masuk.';
       setError(msg);
       onNotify?.('error', 'Login Gagal', msg);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleGoogleCloudLogin() {
-    setError('');
-    setLoading(true);
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (err: unknown) {
-      const code = (err as { code?: string })?.code || '';
-      let msg = 'Gagal menghubungkan akun Google Firebase.';
-      if (code === 'auth/popup-closed-by-user') {
-        msg = 'Jendela login Google ditutup sebelum selesai.';
-      } else if (code === 'auth/unauthorized-domain') {
-        msg =
-          'Domain belum terdaftar di Firebase Authentication (Authorized Domains). Gunakan login Username/NIP atau daftarkan domain di Firebase Console.';
-      }
-      setError(msg);
-      onNotify?.('error', 'Login Google Gagal', msg);
     } finally {
       setLoading(false);
     }
@@ -274,18 +254,6 @@ export function LoginView({ branding, onLoginSuccess, onNotify }: LoginViewProps
                 {loading ? 'Memverifikasi...' : 'Masuk Aplikasi'}
               </button>
             </form>
-
-            <div className="mt-5 border-t border-slate-200 pt-4">
-              <button
-                type="button"
-                disabled={loading}
-                onClick={handleGoogleCloudLogin}
-                className="inline-flex min-h-[40px] w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50"
-              >
-                <Cloud className="h-3.5 w-3.5 text-emerald-600" />
-                <span>Sinkron Cloud Firebase (Login Google)</span>
-              </button>
-            </div>
           </div>
         </section>
       </main>

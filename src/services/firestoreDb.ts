@@ -21,8 +21,10 @@ import type {
   KelengkapanBerkas,
   PengaturanSekolah,
   PenilaianItem,
+  PoinBerkasItem,
   RekapGuru,
   StatusBerkas,
+  StatusPoinBerkas,
   TahapSummary,
   TahapSupervisi,
   TargetMapelAspek,
@@ -34,6 +36,7 @@ import {
   DEFAULT_BK_ASPEK_EVALUASI,
   DEFAULT_BK_ASPEK_PELAKSANAAN,
   DEFAULT_BK_ASPEK_PERSIAPAN,
+  DEFAULT_POIN_BERKAS,
   getAspekForGuru,
   hitungPredikat,
   resolveAspekTargetMapel,
@@ -51,6 +54,18 @@ function trunc(raw: string | undefined | null, maxLen: number): string {
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function normalizeCekBerkas(raw: unknown): Record<string, StatusPoinBerkas> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, StatusPoinBerkas> = {};
+  Object.entries(raw as Record<string, unknown>).forEach(([k, v]) => {
+    const cleanKey = sanitizeId(k, 64);
+    if (v === 'Ada' || v === 'Tidak Ada') {
+      out[cleanKey] = v;
+    }
+  });
+  return out;
 }
 
 export function createDefaultSeedData() {
@@ -422,9 +437,12 @@ export function createDefaultSeedData() {
     logoKanan: '',
   };
 
+  const poinBerkas: PoinBerkasItem[] = DEFAULT_POIN_BERKAS.map((p) => ({ ...p }));
+
   return {
     users,
     guru,
+    poinBerkas,
     aspekPersiapan,
     aspekPelaksanaan,
     aspekEvaluasi,
@@ -691,6 +709,20 @@ export async function ensureInitialSeed(
     });
   });
 
+  seed.poinBerkas.forEach((p, idx) => {
+    const id = sanitizeId(p.id, 64);
+    batch1.set(doc(db, 'poinBerkas', id), {
+      id,
+      nama: trunc(p.nama, 150),
+      deskripsi: trunc(p.deskripsi, 500),
+      orderIndex: p.orderIndex ?? idx + 1,
+      publicCatalog: true,
+      ownerUid: uid,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  });
+
   seed.guru.forEach((g) => {
     const id = sanitizeId(g.id, 64);
     batch1.set(doc(db, 'guru', id), {
@@ -909,6 +941,30 @@ export async function fetchSadigData(
   const aspekPelaksanaan = mapAspek('Pelaksanaan');
   const aspekEvaluasi = mapAspek('Evaluasi');
 
+  let poinSnap;
+  try {
+    poinSnap = await getDocs(
+      query(collection(db, 'poinBerkas'), where('publicCatalog', '==', true))
+    );
+  } catch {
+    poinSnap = null;
+  }
+
+  const poinBerkas: PoinBerkasItem[] =
+    poinSnap && !poinSnap.empty
+      ? poinSnap.docs
+          .map((d) => {
+            const p = d.data();
+            return {
+              id: String(p.id || d.id),
+              nama: String(p.nama || ''),
+              deskripsi: String(p.deskripsi || ''),
+              orderIndex: Number(p.orderIndex ?? 0),
+            };
+          })
+          .sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0))
+      : DEFAULT_POIN_BERKAS.map((p) => ({ ...p }));
+
   let users: UserAccount[] = [];
   if (isTrueAdmin && authEmail === ADMIN_BOOTSTRAP_EMAIL) {
     try {
@@ -951,6 +1007,7 @@ export async function fetchSadigData(
       kelengkapanBerkas: (g.kelengkapanBerkas || 'Belum Ada') as KelengkapanBerkas,
       linkDriveBerkas: String(g.linkDriveBerkas || ''),
       catatanKepsek: String(g.catatanKepsek || ''),
+      cekBerkas: normalizeCekBerkas(g.cekBerkas),
       guruEmail: String(g.guruEmail || ''),
       supervisorEmail: String(g.supervisorEmail || ''),
       kepsekEmail: String(g.kepsekEmail || ''),
@@ -985,6 +1042,7 @@ export async function fetchSadigData(
   return {
     users,
     guru,
+    poinBerkas,
     aspekPersiapan,
     aspekPelaksanaan,
     aspekEvaluasi,
@@ -1137,6 +1195,7 @@ export async function uploadBerkasGuruFs(idGuru: string, linkDriveBerkas: string
       linkDriveBerkas: trunc(linkDriveBerkas.trim(), 500),
       statusBerkas: 'Belum Dicek',
       kelengkapanBerkas: 'Belum Ada',
+      cekBerkas: {},
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
@@ -1148,7 +1207,8 @@ export async function verifikasiKepsekFs(
   idGuru: string,
   kelengkapanBerkas: KelengkapanBerkas,
   statusBerkas: StatusBerkas,
-  catatanKepsek: string
+  catatanKepsek: string,
+  cekBerkas?: Record<string, StatusPoinBerkas>
 ): Promise<void> {
   const safeId = sanitizeId(idGuru, 64);
   try {
@@ -1156,6 +1216,7 @@ export async function verifikasiKepsekFs(
       kelengkapanBerkas,
       statusBerkas,
       catatanKepsek: trunc(catatanKepsek, 1000),
+      cekBerkas: normalizeCekBerkas(cekBerkas),
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
@@ -1385,6 +1446,87 @@ export async function deleteAspekFs(id: string): Promise<void> {
     await deleteDoc(doc(db, 'aspek', safeId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `aspek/${safeId}`);
+  }
+}
+
+async function ensurePoinBerkasSeededInFirestore(ownerUid: string): Promise<boolean> {
+  const snap = await getDocs(
+    query(collection(db, 'poinBerkas'), where('publicCatalog', '==', true))
+  );
+  if (!snap.empty) return false;
+  const batch = writeBatch(db);
+  DEFAULT_POIN_BERKAS.forEach((p, idx) => {
+    const id = sanitizeId(p.id, 64);
+    batch.set(doc(db, 'poinBerkas', id), {
+      id,
+      nama: trunc(p.nama, 150),
+      deskripsi: trunc(p.deskripsi, 500),
+      orderIndex: p.orderIndex ?? idx + 1,
+      publicCatalog: true,
+      ownerUid: sanitizeId(ownerUid, 128),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  });
+  await batch.commit();
+  return true;
+}
+
+export async function savePoinBerkasFs(
+  input: Partial<PoinBerkasItem>,
+  existingList: PoinBerkasItem[],
+  ownerUid: string
+): Promise<void> {
+  try {
+    await ensurePoinBerkasSeededInFirestore(ownerUid);
+  } catch {
+    // proceed directly if read/seed check fails
+  }
+
+  if (input.id) {
+    const id = sanitizeId(input.id, 64);
+    try {
+      await updateDoc(doc(db, 'poinBerkas', id), {
+        nama: trunc(input.nama, 150),
+        deskripsi: trunc(input.deskripsi || '', 500),
+        orderIndex: Number(input.orderIndex ?? 1),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `poinBerkas/${id}`);
+    }
+    return;
+  }
+
+  const maxNum = existingList.reduce((max, p) => {
+    const n = parseInt(p.id.replace(/\D/g, ''), 10);
+    return Number.isNaN(n) ? max : Math.max(max, n);
+  }, 0);
+  const maxOrder = existingList.reduce((max, p) => Math.max(max, Number(p.orderIndex ?? 0)), existingList.length);
+  const newId = `PB${maxNum + 1}`;
+  try {
+    await setDoc(doc(db, 'poinBerkas', newId), {
+      id: newId,
+      nama: trunc(input.nama, 150),
+      deskripsi: trunc(input.deskripsi || '', 500),
+      orderIndex: Number(input.orderIndex ?? maxOrder + 1),
+      publicCatalog: true,
+      ownerUid: sanitizeId(ownerUid, 128),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `poinBerkas/${newId}`);
+  }
+}
+
+export async function deletePoinBerkasFs(id: string, ownerUid: string): Promise<void> {
+  const safeId = sanitizeId(id, 64);
+  try {
+    await ensurePoinBerkasSeededInFirestore(ownerUid);
+    await deleteDoc(doc(db, 'poinBerkas', safeId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `poinBerkas/${safeId}`);
   }
 }
 

@@ -105,6 +105,38 @@ export function GuruWorkspaceView({
             </div>
           )}
 
+          {guru.cekBerkas && Object.keys(guru.cekBerkas).length > 0 && (
+            <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
+              <div className="text-xs font-semibold text-slate-800">
+                Hasil Pemeriksaan Poin Berkas:
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {(data.poinBerkas || [])
+                  .slice()
+                  .sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0))
+                  .map((p) => {
+                    const st = guru.cekBerkas?.[p.id];
+                    if (!st) return null;
+                    return (
+                      <div
+                        key={p.id}
+                        className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md bg-white border border-slate-200 text-xs"
+                      >
+                        <span className="text-slate-700 truncate">{p.nama}</span>
+                        <span
+                          className={`font-semibold shrink-0 ${
+                            st === 'Ada' ? 'text-emerald-700' : 'text-red-600'
+                          }`}
+                        >
+                          {st}
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleUploadDrive} className="space-y-4">
             <div>
               <label className="block text-sm font-semibold text-slate-800 mb-1.5">

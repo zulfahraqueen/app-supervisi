@@ -124,56 +124,109 @@
       "kelompok": "I. IDENTITAS & CAPAIAN",
       "aspek": "Identitas Modul Ajar / Perangkat Pembelajaran",
       "kategoriDeskripsi": "Mencantumkan satuan pendidikan, mata pelajaran, fase/kelas, semester, dan alokasi waktu.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
     },
     {
       "id": "P2",
       "kelompok": "I. IDENTITAS & CAPAIAN",
       "aspek": "Identifikasi Kesiapan Peserta Didik",
       "kategoriDeskripsi": "Memetakan kesiapan belajar, minat, dan profil belajar murid berbasis asesmen diagnostik.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
     },
     {
       "id": "P3",
       "kelompok": "I. IDENTITAS & CAPAIAN",
       "aspek": "Dimensi Profil Lulusan / Profil Pelajar Pancasila",
       "kategoriDeskripsi": "Menentukan dimensi karakter yang relevan dan terintegrasi pada tujuan pembelajaran.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
     },
     {
       "id": "P4",
       "kelompok": "II. DESAIN PEMBELAJARAN",
       "aspek": "Perumusan CP, TP, dan Alur Tujuan Pembelajaran (ATP)",
       "kategoriDeskripsi": "Tujuan pembelajaran terukur, selaras dengan Capaian Pembelajaran fase terkini.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
     },
     {
       "id": "P5",
       "kelompok": "II. DESAIN PEMBELAJARAN",
       "aspek": "Pemilihan Model & Pedagogi Pembelajaran Mendalam",
       "kategoriDeskripsi": "Merancang pengalaman belajar memahami, mengaplikasikan, dan merefleksikan materi.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
     },
     {
       "id": "P6",
       "kelompok": "II. DESAIN PEMBELAJARAN",
       "aspek": "Langkah Pembelajaran Berdiferensiasi",
       "kategoriDeskripsi": "Kegiatan pendahuluan, inti, dan penutup mengakomodasi kebutuhan belajar beragam.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
     },
     {
       "id": "P7",
       "kelompok": "III. ASESMEN & SUMBER BELAJAR",
       "aspek": "Rancangan Asesmen Awal, Formatif, dan Sumatif",
       "kategoriDeskripsi": "Tersedia instrumen dan rubrik penilaian autentik yang terukur dan objektif.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
     },
     {
       "id": "P8",
       "kelompok": "III. ASESMEN & SUMBER BELAJAR",
       "aspek": "Media Digital, LKPD, dan Bahan Ajar Kontekstual",
       "kategoriDeskripsi": "Melampirkan LKPD, bahan bacaan relevan, dan pemanfaatan media pembelajaran digital.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
+    },
+    {
+      "id": "BK_P1",
+      "kelompok": "I. ADMINISTRASI PERENCANAAN (PROGRAM)",
+      "aspek": "Asesmen Kebutuhan (Analisis AKPD/AUM)",
+      "kategoriDeskripsi": "Ketersediaan dan kelengkapan dokumen asesmen kebutuhan peserta didik (AKPD/AUM).",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 101
+    },
+    {
+      "id": "BK_P2",
+      "kelompok": "I. ADMINISTRASI PERENCANAAN (PROGRAM)",
+      "aspek": "Program Tahunan",
+      "kategoriDeskripsi": "Ketersediaan dan kelengkapan dokumen Program Tahunan layanan BK.",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 102
+    },
+    {
+      "id": "BK_P3",
+      "kelompok": "I. ADMINISTRASI PERENCANAAN (PROGRAM)",
+      "aspek": "Program Semesteran (Promes)",
+      "kategoriDeskripsi": "Ketersediaan dan kelengkapan dokumen Program Semesteran (Promes) layanan BK.",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 103
+    },
+    {
+      "id": "BK_P4",
+      "kelompok": "I. ADMINISTRASI PERENCANAAN (PROGRAM)",
+      "aspek": "Rencana Pelaksanaan Layanan (RPL)",
+      "kategoriDeskripsi": "Ketersediaan dan kelengkapan Rencana Pelaksanaan Layanan (RPL) Bimbingan dan Konseling.",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 104
+    },
+    {
+      "id": "BK_P5",
+      "kelompok": "I. ADMINISTRASI PERENCANAAN (PROGRAM)",
+      "aspek": "Silabus/Peta Materi BK",
+      "kategoriDeskripsi": "Ketersediaan dan kelengkapan Silabus atau Peta Materi layanan BK.",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 105
     }
   ],
   "aspekPelaksanaan": [
@@ -182,56 +235,127 @@
       "kelompok": "I. KEGIATAN PENDAHULUAN",
       "aspek": "Pengondisian Kelas & Kesepakatan Belajar",
       "kategoriDeskripsi": "Menciptakan suasana aman, nyaman, berdoa, dan menegakkan kesepakatan kelas positif.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
     },
     {
       "id": "L2",
       "kelompok": "I. KEGIATAN PENDAHULUAN",
       "aspek": "Apersepsi, Motivasi & Penyampaian Tujuan",
       "kategoriDeskripsi": "Mengaitkan materi dengan pengalaman nyata murid dan menyampaikan tujuan pembelajaran.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
     },
     {
       "id": "L3",
       "kelompok": "II. KEGIATAN INTI (PEMBELAJARAN MENDALAM)",
       "aspek": "Penguasaan Materi & Pertanyaan Pemantik Kritis",
       "kategoriDeskripsi": "Menyajikan materi terstruktur dengan pertanyaan pemantik yang merangsang nalar kritis.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
     },
     {
       "id": "L4",
       "kelompok": "II. KEGIATAN INTI (PEMBELAJARAN MENDALAM)",
       "aspek": "Fasilitasi Kolaborasi & Diferensiasi Proses",
       "kategoriDeskripsi": "Mendampingi kelompok belajar secara adil dan adaptif sesuai kebutuhan murid.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
     },
     {
       "id": "L5",
       "kelompok": "II. KEGIATAN INTI (PEMBELAJARAN MENDALAM)",
       "aspek": "Pemanfaatan Teknologi & Media Interaktif",
       "kategoriDeskripsi": "Menggunakan perangkat digital/alat peraga secara efektif untuk memperjelas konsep.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
     },
     {
       "id": "L6",
       "kelompok": "II. KEGIATAN INTI (PEMBELAJARAN MENDALAM)",
       "aspek": "Asesmen Formatif & Umpan Balik Konstruktif",
       "kategoriDeskripsi": "Memantau proses belajar murid dan memberi umpan balik langsung yang membangun.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
     },
     {
       "id": "L7",
       "kelompok": "III. KEGIATAN PENUTUP",
       "aspek": "Penyimpulan Bersama & Refleksi Pembelajaran",
       "kategoriDeskripsi": "Melibatkan murid menyimpulkan inti materi dan merefleksikan pengalaman belajar.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
     },
     {
       "id": "L8",
       "kelompok": "III. KEGIATAN PENUTUP",
       "aspek": "Asesmen Akhir & Tindak Lanjut Pertemuan",
       "kategoriDeskripsi": "Melakukan pengecekan ketercapaian tujuan dan menginformasikan rencana pertemuan berikutnya.",
-      "tipePenilaian": "skor"
+      "tipePenilaian": "skor",
+      "targetMapel": "Umum"
+    },
+    {
+      "id": "BK_L1",
+      "kelompok": "II. ADMINISTRASI PELAKSANAAN LAYANAN",
+      "aspek": "Jurnal/Buku Harian Guru BK",
+      "kategoriDeskripsi": "Pencatatan kegiatan layanan harian Guru BK secara tertib dan berkala.",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 101
+    },
+    {
+      "id": "BK_L2",
+      "kelompok": "II. ADMINISTRASI PELAKSANAAN LAYANAN",
+      "aspek": "Buku Klasifikasi Masalah",
+      "kategoriDeskripsi": "Pemetaan dan klasifikasi permasalahan peserta didik (pribadi, sosial, belajar, karier).",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 102
+    },
+    {
+      "id": "BK_L3",
+      "kelompok": "II. ADMINISTRASI PELAKSANAAN LAYANAN",
+      "aspek": "Dokumentasi Konseling Perorangan",
+      "kategoriDeskripsi": "Kelengkapan catatan dan dokumentasi pelaksanaan layanan konseling perorangan.",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 103
+    },
+    {
+      "id": "BK_L4",
+      "kelompok": "II. ADMINISTRASI PELAKSANAAN LAYANAN",
+      "aspek": "Dokumentasi Konseling Kelompok",
+      "kategoriDeskripsi": "Kelengkapan catatan dan dokumentasi pelaksanaan layanan konseling kelompok.",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 104
+    },
+    {
+      "id": "BK_L5",
+      "kelompok": "II. ADMINISTRASI PELAKSANAAN LAYANAN",
+      "aspek": "Dokumentasi Bimbingan Klasikal",
+      "kategoriDeskripsi": "Kelengkapan daftar hadir, materi, dan dokumentasi layanan bimbingan klasikal.",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 105
+    },
+    {
+      "id": "BK_L6",
+      "kelompok": "II. ADMINISTRASI PELAKSANAAN LAYANAN",
+      "aspek": "Catatan Home Visit",
+      "kategoriDeskripsi": "Dokumentasi kunjungan rumah (home visit) beserta tindak lanjut penanganan kasus.",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 106
+    },
+    {
+      "id": "BK_L7",
+      "kelompok": "II. ADMINISTRASI PELAKSANAAN LAYANAN",
+      "aspek": "Buku Referal (Alih Tangan Kasus)",
+      "kategoriDeskripsi": "Pencatatan dan dokumentasi alih tangan kasus (referal) kepada pihak terkait.",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 107
     }
   ],
   "aspekEvaluasi": [
@@ -240,42 +364,111 @@
       "kelompok": "I. ANALISIS HASIL ASESMEN",
       "aspek": "Rekapitulasi & Analisis Ketuntasan Hasil Belajar",
       "kategoriDeskripsi": "Dialog refleksi bersama guru mengenai capaian asesmen formatif/sumatif murid.",
-      "tipePenilaian": "teks"
+      "tipePenilaian": "teks",
+      "targetMapel": "Umum"
     },
     {
       "id": "E2",
       "kelompok": "I. ANALISIS HASIL ASESMEN",
       "aspek": "Identifikasi Butir Soal / Indikator Belum Tuntas",
       "kategoriDeskripsi": "Dialog mengenai materi esensial yang masih mengalami miskonsepsi atau di bawah KKTP.",
-      "tipePenilaian": "teks"
+      "tipePenilaian": "teks",
+      "targetMapel": "Umum"
     },
     {
       "id": "E3",
       "kelompok": "II. PROGRAM TINDAK LANJUT",
       "aspek": "Pelaksanaan Program Remedial Terstruktur",
       "kategoriDeskripsi": "Kesepakatan strategi pendampingan ulang bagi murid yang belum mencapai tujuan.",
-      "tipePenilaian": "teks"
+      "tipePenilaian": "teks",
+      "targetMapel": "Umum"
     },
     {
       "id": "E4",
       "kelompok": "II. PROGRAM TINDAK LANJUT",
       "aspek": "Pelaksanaan Program Pengayaan & Tantangan Lanjut",
       "kategoriDeskripsi": "Umpan balik atas tugas pengayaan kontekstual bagi murid yang melampaui capaian.",
-      "tipePenilaian": "teks"
+      "tipePenilaian": "teks",
+      "targetMapel": "Umum"
     },
     {
       "id": "E5",
       "kelompok": "III. REFLEKSI & PELAPORAN",
       "aspek": "Refleksi Profesional Guru atas Efektivitas Mengajar",
       "kategoriDeskripsi": "Hasil dialog kekuatan mengajar, kendala kelas, dan perbaikan strategi pedagogis.",
-      "tipePenilaian": "teks"
+      "tipePenilaian": "teks",
+      "targetMapel": "Umum"
     },
     {
       "id": "E6",
       "kelompok": "III. REFLEKSI & PELAPORAN",
       "aspek": "Dokumentasi Portofolio & Pelaporan Berkala",
       "kategoriDeskripsi": "Catatan kelengkapan portofolio murid dan penyampaian progres ke orang tua/sekolah.",
-      "tipePenilaian": "teks"
+      "tipePenilaian": "teks",
+      "targetMapel": "Umum"
+    },
+    {
+      "id": "BK_E1",
+      "kelompok": "III. ADMINISTRASI EVALUASI & TINDAK LANJUT",
+      "aspek": "Evaluasi Proses",
+      "kategoriDeskripsi": "Pelaksanaan dan dokumentasi evaluasi proses layanan bimbingan dan konseling.",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 101
+    },
+    {
+      "id": "BK_E2",
+      "kelompok": "III. ADMINISTRASI EVALUASI & TINDAK LANJUT",
+      "aspek": "Evaluasi Hasil (Laiseg, Laijapen, Laijapang)",
+      "kategoriDeskripsi": "Pelaksanaan penilaian segera (Laiseg), jangka pendek (Laijapen), dan jangka panjang (Laijapang).",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 102
+    },
+    {
+      "id": "BK_E3",
+      "kelompok": "III. ADMINISTRASI EVALUASI & TINDAK LANJUT",
+      "aspek": "Laporan Bulanan/Semesteran",
+      "kategoriDeskripsi": "Penyusunan laporan pelaksanaan program BK secara bulanan dan semesteran.",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 103
+    },
+    {
+      "id": "BK_E4",
+      "kelompok": "III. ADMINISTRASI EVALUASI & TINDAK LANJUT",
+      "aspek": "Analisis Tindak Lanjut",
+      "kategoriDeskripsi": "Analisis hasil evaluasi layanan dan penyusunan rencana tindak lanjut perbaikan.",
+      "tipePenilaian": "skor",
+      "targetMapel": "BK",
+      "orderIndex": 104
+    },
+    {
+      "id": "BK_E5",
+      "kelompok": "IV. SARANA PRASARANA PENUNJANG",
+      "aspek": "Ruang Konseling (Privat)",
+      "kategoriDeskripsi": "Kondisi fasilitas: Layak / Tidak (isikan kelayakan dan kondisi ruang konseling privat).",
+      "tipePenilaian": "teks",
+      "targetMapel": "BK",
+      "orderIndex": 105
+    },
+    {
+      "id": "BK_E6",
+      "kelompok": "IV. SARANA PRASARANA PENUNJANG",
+      "aspek": "Kotak Masalah / Papan Bimbingan",
+      "kategoriDeskripsi": "Kondisi fasilitas: Ada / Tidak (isikan ketersediaan kotak masalah atau papan bimbingan).",
+      "tipePenilaian": "teks",
+      "targetMapel": "BK",
+      "orderIndex": 106
+    },
+    {
+      "id": "BK_E7",
+      "kelompok": "IV. SARANA PRASARANA PENUNJANG",
+      "aspek": "Lemari Arsip (Terkunci/Rahasia)",
+      "kategoriDeskripsi": "Kondisi fasilitas: Ada / Tidak (isikan ketersediaan lemari arsip terkunci untuk kerahasiaan data).",
+      "tipePenilaian": "teks",
+      "targetMapel": "BK",
+      "orderIndex": 107
     }
   ],
   "penilaian": [
@@ -652,5 +845,37 @@
     "nipPengawas": "19731231 200112 1 022",
     "tanggalPelaksanaanUmum": "2026-11-10",
     "tempatTanggalCetak": "Kota Jambi, 13 November 2026"
-  }
+  },
+  "poinBerkas": [
+    {
+      "id": "PB1",
+      "nama": "RPP",
+      "deskripsi": "Rencana Pelaksanaan Pembelajaran sesuai fase/kelas yang diampu.",
+      "orderIndex": 1
+    },
+    {
+      "id": "PB2",
+      "nama": "Modul Ajar",
+      "deskripsi": "Modul Ajar Kurikulum Merdeka lengkap dengan tujuan dan langkah pembelajaran.",
+      "orderIndex": 2
+    },
+    {
+      "id": "PB3",
+      "nama": "Alur Tujuan Pembelajaran (ATP)",
+      "deskripsi": "Dokumen CP, TP, dan Alur Tujuan Pembelajaran semester berjalan.",
+      "orderIndex": 3
+    },
+    {
+      "id": "PB4",
+      "nama": "LKPD & Bahan Ajar",
+      "deskripsi": "Lembar Kerja Peserta Didik dan bahan bacaan kontekstual.",
+      "orderIndex": 4
+    },
+    {
+      "id": "PB5",
+      "nama": "Instrumen & Rubrik Asesmen",
+      "deskripsi": "Instrumen asesmen awal, formatif, sumatif, beserta rubrik penilaian.",
+      "orderIndex": 5
+    }
+  ]
 }

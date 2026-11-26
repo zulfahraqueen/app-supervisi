@@ -5,7 +5,9 @@ import type {
   GuruRecord,
   KelengkapanBerkas,
   PengaturanSekolah,
+  PoinBerkasItem,
   StatusBerkas,
+  StatusPoinBerkas,
   TahapSupervisi,
   TargetMapelAspek,
   TipePenilaianAspek,
@@ -16,6 +18,7 @@ import {
   DEFAULT_BK_ASPEK_EVALUASI,
   DEFAULT_BK_ASPEK_PELAKSANAAN,
   DEFAULT_BK_ASPEK_PERSIAPAN,
+  DEFAULT_POIN_BERKAS,
   getAspekForGuru,
   resolveAspekTargetMapel,
 } from '../types';
@@ -26,11 +29,13 @@ import {
   deleteAspekFs,
   deleteDirectoryUserFs,
   deleteGuruFs,
+  deletePoinBerkasFs,
   saveAspekFs,
   saveDirectoryUserFs,
   saveGuruFs,
   savePengaturanFs,
   savePenilaianFs,
+  savePoinBerkasFs,
   seedBkAspekFs,
   uploadBerkasGuruFs,
   verifikasiKepsekFs,
@@ -40,6 +45,7 @@ import {
   deleteAspekSb,
   deleteDirectoryUserSb,
   deleteGuruSb,
+  deletePoinBerkasSb,
   fetchSupabaseState,
   isSupabaseConfigured,
   loginWithSupabase,
@@ -48,10 +54,31 @@ import {
   saveGuruSb,
   savePengaturanSb,
   savePenilaianSb,
+  savePoinBerkasSb,
   seedBkAspekSb,
   uploadBerkasGuruSb,
   verifikasiKepsekSb,
 } from './supabaseDb';
+import {
+  bulkImportGuruGas,
+  deleteAspekGas,
+  deleteDirectoryUserGas,
+  deleteGuruGas,
+  deletePoinBerkasGas,
+  fetchGasState,
+  isGasConfigured,
+  loginWithGas,
+  quickLoginGas,
+  saveAspekGas,
+  saveDirectoryUserGas,
+  saveGuruGas,
+  savePengaturanGas,
+  savePenilaianGas,
+  savePoinBerkasGas,
+  seedBkAspekGas,
+  uploadBerkasGuruGas,
+  verifikasiKepsekGas,
+} from './gasDb';
 
 const LOCAL_STORAGE_KEY = 'sadig_local_db_v1';
 const BRANDING_CACHE_KEY = 'sadig_public_branding_v1';
@@ -107,7 +134,21 @@ function mergeDefaultBkAspects(db: LocalDb): boolean {
   ensureStage(db.aspekPersiapan, DEFAULT_BK_ASPEK_PERSIAPAN);
   ensureStage(db.aspekPelaksanaan, DEFAULT_BK_ASPEK_PELAKSANAAN);
   ensureStage(db.aspekEvaluasi, DEFAULT_BK_ASPEK_EVALUASI);
+  if (!Array.isArray(db.poinBerkas) || db.poinBerkas.length === 0) {
+    db.poinBerkas = DEFAULT_POIN_BERKAS.map((p) => ({ ...p }));
+    changed = true;
+  }
   return changed;
+}
+
+function normalizePayload(payload: AppDatabasePayload): AppDatabasePayload {
+  return {
+    ...payload,
+    poinBerkas:
+      Array.isArray(payload.poinBerkas) && payload.poinBerkas.length > 0
+        ? payload.poinBerkas
+        : DEFAULT_POIN_BERKAS.map((p) => ({ ...p })),
+  };
 }
 
 function loadLocalDb(): LocalDb {
@@ -170,6 +211,9 @@ export async function loginWithCredentials(
   identifier: string,
   password: string
 ): Promise<{ success: boolean; user?: UserAccount; message?: string }> {
+  if (isGasConfigured()) {
+    return loginWithGas(identifier, password);
+  }
   if (isSupabaseConfigured()) {
     return loginWithSupabase(identifier, password);
   }
@@ -203,6 +247,9 @@ export async function loginWithCredentials(
 export async function quickLoginByRole(
   role: UserRole
 ): Promise<{ success: boolean; user?: UserAccount; message?: string }> {
+  if (isGasConfigured()) {
+    return quickLoginGas(role);
+  }
   const remote = await tryFetchJson<{ success: boolean; user?: UserAccount; message?: string }>(
     '/api/quick-login',
     {
@@ -224,17 +271,23 @@ export async function quickLoginByRole(
 }
 
 export async function fetchLocalOrServerState(): Promise<AppDatabasePayload> {
+  if (isGasConfigured()) {
+    const payload = normalizePayload(await fetchGasState());
+    saveBrandingCache(payload.pengaturan);
+    return payload;
+  }
   if (isSupabaseConfigured()) {
-    const payload = await fetchSupabaseState();
+    const payload = normalizePayload(await fetchSupabaseState());
     saveBrandingCache(payload.pengaturan);
     return payload;
   }
   const remote = await tryFetchJson<AppDatabasePayload>('/api/state');
   if (!remote.networkUnavailable && remote.ok && remote.json) {
-    saveBrandingCache(remote.json.pengaturan);
-    return remote.json;
+    const payload = normalizePayload(remote.json);
+    saveBrandingCache(payload.pengaturan);
+    return payload;
   }
-  const payload = toPayload(loadLocalDb());
+  const payload = normalizePayload(toPayload(loadLocalDb()));
   saveBrandingCache(payload.pengaturan);
   return payload;
 }
@@ -248,6 +301,9 @@ export async function saveGuruClient(
   if (auth.currentUser) {
     await saveGuruFs(input, directoryUsers, existingGuru, ownerUid);
     return null;
+  }
+  if (isGasConfigured()) {
+    return saveGuruGas(input);
   }
   if (isSupabaseConfigured()) {
     return saveGuruSb(input, directoryUsers);
@@ -314,6 +370,9 @@ export async function bulkImportGuruClient(
     const count = await bulkImportGuruFs(items, directoryUsers, existingGuru, defaultDate, ownerUid);
     return { data: null, count };
   }
+  if (isGasConfigured()) {
+    return bulkImportGuruGas(items, defaultDate);
+  }
   if (isSupabaseConfigured()) {
     return bulkImportGuruSb(items, directoryUsers, defaultDate);
   }
@@ -362,6 +421,9 @@ export async function deleteGuruClient(id: string): Promise<AppDatabasePayload |
     await deleteGuruFs(id);
     return null;
   }
+  if (isGasConfigured()) {
+    return deleteGuruGas(id);
+  }
   if (isSupabaseConfigured()) {
     return deleteGuruSb(id);
   }
@@ -395,6 +457,9 @@ export async function uploadBerkasGuruClient(
     await uploadBerkasGuruFs(idGuru, linkDriveBerkas);
     return null;
   }
+  if (isGasConfigured()) {
+    return uploadBerkasGuruGas(idGuru, linkDriveBerkas);
+  }
   if (isSupabaseConfigured()) {
     return uploadBerkasGuruSb(idGuru, linkDriveBerkas);
   }
@@ -420,6 +485,7 @@ export async function uploadBerkasGuruClient(
     db.guru[idx].statusBerkas = 'Belum Dicek';
     db.guru[idx].kelengkapanBerkas = 'Belum Ada';
     db.guru[idx].catatanKepsek = '';
+    db.guru[idx].cekBerkas = {};
   }
   saveLocalDb(db);
   return toPayload(db);
@@ -429,21 +495,25 @@ export async function verifikasiKepsekClient(
   idGuru: string,
   kelengkapanBerkas: KelengkapanBerkas,
   statusBerkas: StatusBerkas,
-  catatanKepsek: string
+  catatanKepsek: string,
+  cekBerkas?: Record<string, StatusPoinBerkas>
 ): Promise<AppDatabasePayload | null> {
   if (auth.currentUser) {
-    await verifikasiKepsekFs(idGuru, kelengkapanBerkas, statusBerkas, catatanKepsek);
+    await verifikasiKepsekFs(idGuru, kelengkapanBerkas, statusBerkas, catatanKepsek, cekBerkas);
     return null;
   }
+  if (isGasConfigured()) {
+    return verifikasiKepsekGas(idGuru, kelengkapanBerkas, statusBerkas, catatanKepsek, cekBerkas);
+  }
   if (isSupabaseConfigured()) {
-    return verifikasiKepsekSb(idGuru, kelengkapanBerkas, statusBerkas, catatanKepsek);
+    return verifikasiKepsekSb(idGuru, kelengkapanBerkas, statusBerkas, catatanKepsek, cekBerkas);
   }
   const remote = await tryFetchJson<{ success: boolean; message?: string; data?: AppDatabasePayload }>(
     '/api/kepsek/verifikasi',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idGuru, kelengkapanBerkas, statusBerkas, catatanKepsek }),
+      body: JSON.stringify({ idGuru, kelengkapanBerkas, statusBerkas, catatanKepsek, cekBerkas }),
     }
   );
   if (!remote.networkUnavailable && remote.json) {
@@ -459,6 +529,9 @@ export async function verifikasiKepsekClient(
     db.guru[idx].kelengkapanBerkas = kelengkapanBerkas;
     db.guru[idx].statusBerkas = statusBerkas;
     db.guru[idx].catatanKepsek = catatanKepsek.trim();
+    if (cekBerkas) {
+      db.guru[idx].cekBerkas = { ...cekBerkas };
+    }
   }
   saveLocalDb(db);
   return toPayload(db);
@@ -483,6 +556,9 @@ export async function savePenilaianClient(params: {
   if (auth.currentUser) {
     await savePenilaianFs(params);
     return null;
+  }
+  if (isGasConfigured()) {
+    return savePenilaianGas(params);
   }
   if (isSupabaseConfigured()) {
     return savePenilaianSb(params);
@@ -562,6 +638,9 @@ export async function saveAspekClient(
     await saveAspekFs(tahap, input, existingList, ownerUid);
     return null;
   }
+  if (isGasConfigured()) {
+    return saveAspekGas(tahap, input);
+  }
   if (isSupabaseConfigured()) {
     return saveAspekSb(tahap, input, existingList);
   }
@@ -634,6 +713,9 @@ export async function seedBkTemplateClient(
     await seedBkAspekFs(existingAllIds, ownerUid);
     return null;
   }
+  if (isGasConfigured()) {
+    return seedBkAspekGas();
+  }
   if (isSupabaseConfigured()) {
     return seedBkAspekSb();
   }
@@ -670,6 +752,9 @@ export async function deleteAspekClient(
     await deleteAspekFs(id);
     return null;
   }
+  if (isGasConfigured()) {
+    return deleteAspekGas(tahap, id);
+  }
   if (isSupabaseConfigured()) {
     return deleteAspekSb(tahap, id);
   }
@@ -697,6 +782,102 @@ export async function deleteAspekClient(
   return toPayload(db);
 }
 
+export async function savePoinBerkasClient(
+  input: Partial<PoinBerkasItem>,
+  existingList: PoinBerkasItem[],
+  ownerUid: string
+): Promise<AppDatabasePayload | null> {
+  if (auth.currentUser) {
+    await savePoinBerkasFs(input, existingList, ownerUid);
+    return null;
+  }
+  if (isGasConfigured()) {
+    return savePoinBerkasGas(input);
+  }
+  if (isSupabaseConfigured()) {
+    return savePoinBerkasSb(input, existingList);
+  }
+  const remote = await tryFetchJson<{ success: boolean; message?: string; data?: AppDatabasePayload }>(
+    '/api/poin-berkas',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }
+  );
+  if (!remote.networkUnavailable && remote.json) {
+    if (!remote.ok || !remote.json.success) {
+      throw new Error(remote.json.message || 'Gagal menyimpan poin pemeriksaan berkas.');
+    }
+    return remote.json.data || null;
+  }
+
+  const db = loadLocalDb();
+  if (!Array.isArray(db.poinBerkas)) {
+    db.poinBerkas = DEFAULT_POIN_BERKAS.map((p) => ({ ...p }));
+  }
+  if (input.id) {
+    const idx = db.poinBerkas.findIndex((p) => p.id === input.id);
+    if (idx !== -1) {
+      db.poinBerkas[idx] = {
+        id: input.id,
+        nama: (input.nama || '').trim(),
+        deskripsi: (input.deskripsi || '').trim(),
+        orderIndex: Number(input.orderIndex ?? db.poinBerkas[idx].orderIndex ?? idx + 1),
+      };
+    }
+  } else {
+    const maxNum = db.poinBerkas.reduce((max, p) => {
+      const n = parseInt(p.id.replace(/\D/g, ''), 10);
+      return Number.isNaN(n) ? max : Math.max(max, n);
+    }, 0);
+    const maxOrder = db.poinBerkas.reduce(
+      (max, p) => Math.max(max, Number(p.orderIndex ?? 0)),
+      db.poinBerkas.length
+    );
+    db.poinBerkas.push({
+      id: `PB${maxNum + 1}`,
+      nama: (input.nama || '').trim(),
+      deskripsi: (input.deskripsi || '').trim(),
+      orderIndex: Number(input.orderIndex ?? maxOrder + 1),
+    });
+  }
+  db.poinBerkas.sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0));
+  saveLocalDb(db);
+  return toPayload(db);
+}
+
+export async function deletePoinBerkasClient(
+  id: string,
+  ownerUid: string
+): Promise<AppDatabasePayload | null> {
+  if (auth.currentUser) {
+    await deletePoinBerkasFs(id, ownerUid);
+    return null;
+  }
+  if (isGasConfigured()) {
+    return deletePoinBerkasGas(id);
+  }
+  if (isSupabaseConfigured()) {
+    return deletePoinBerkasSb(id);
+  }
+  const remote = await tryFetchJson<{ success: boolean; message?: string; data?: AppDatabasePayload }>(
+    `/api/poin-berkas/${encodeURIComponent(id)}`,
+    { method: 'DELETE' }
+  );
+  if (!remote.networkUnavailable && remote.json) {
+    if (!remote.ok || !remote.json.success) {
+      throw new Error(remote.json.message || 'Gagal menghapus poin pemeriksaan berkas.');
+    }
+    return remote.json.data || null;
+  }
+
+  const db = loadLocalDb();
+  db.poinBerkas = (db.poinBerkas || []).filter((p) => p.id !== id);
+  saveLocalDb(db);
+  return toPayload(db);
+}
+
 export async function saveDirectoryUserClient(
   input: Partial<UserAccount> & { oldUsername?: string },
   existingUsers: UserAccount[],
@@ -705,6 +886,9 @@ export async function saveDirectoryUserClient(
   if (auth.currentUser) {
     await saveDirectoryUserFs(input, existingUsers, ownerUid);
     return null;
+  }
+  if (isGasConfigured()) {
+    return saveDirectoryUserGas(input);
   }
   if (isSupabaseConfigured()) {
     return saveDirectoryUserSb(input);
@@ -760,6 +944,9 @@ export async function deleteDirectoryUserClient(
     await deleteDirectoryUserFs(user.id || user.username);
     return null;
   }
+  if (isGasConfigured()) {
+    return deleteDirectoryUserGas(user);
+  }
   if (isSupabaseConfigured()) {
     return deleteDirectoryUserSb(user);
   }
@@ -788,6 +975,9 @@ export async function savePengaturanClient(
   if (auth.currentUser) {
     await savePengaturanFs(input, ownerUid);
     return null;
+  }
+  if (isGasConfigured()) {
+    return savePengaturanGas(input);
   }
   if (isSupabaseConfigured()) {
     return savePengaturanSb(input);

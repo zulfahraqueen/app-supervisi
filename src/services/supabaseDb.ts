@@ -7,14 +7,16 @@ import type {
   KelengkapanBerkas,
   PengaturanSekolah,
   PenilaianItem,
+  PoinBerkasItem,
   StatusBerkas,
+  StatusPoinBerkas,
   TahapSupervisi,
   TargetMapelAspek,
   TipePenilaianAspek,
   UserAccount,
   UserRole,
 } from '../types';
-import { getDefaultBkAspekByTahap } from '../types';
+import { DEFAULT_POIN_BERKAS, getDefaultBkAspekByTahap } from '../types';
 import { buildRekap, createDefaultSeedData } from './firestoreDb';
 
 const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || '';
@@ -216,6 +218,24 @@ export async function fetchSupabaseState(): Promise<AppDatabasePayload> {
 
   const seed = createDefaultSeedData();
 
+  let poinBerkas: PoinBerkasItem[] = DEFAULT_POIN_BERKAS.map((p) => ({ ...p }));
+  try {
+    const { data: poinData, error: poinErr } = await sb
+      .from('sadig_poin_berkas')
+      .select('*')
+      .order('order_index', { ascending: true });
+    if (!poinErr && poinData && poinData.length > 0) {
+      poinBerkas = poinData.map((r) => ({
+        id: String(r.id),
+        nama: String(r.nama || ''),
+        deskripsi: String(r.deskripsi || ''),
+        orderIndex: Number(r.order_index ?? 0),
+      }));
+    }
+  } catch {
+    // Graceful fallback if sadig_poin_berkas table is not yet created
+  }
+
   const users: UserAccount[] = (usersData || []).map((r) => ({
     id: String(r.id),
     username: String(r.username),
@@ -226,20 +246,33 @@ export async function fetchSupabaseState(): Promise<AppDatabasePayload> {
     nip: String(r.nip || ''),
   }));
 
-  const guru: GuruRecord[] = (guruData || []).map((r) => ({
-    id: String(r.id),
-    nip: String(r.nip),
-    namaGuru: String(r.nama_guru),
-    mataPelajaran: String(r.mata_pelajaran),
-    tanggalPelaksanaan: String(r.tanggal_pelaksanaan || ''),
-    supervisor: String(r.supervisor || ''),
-    nipSupervisor: String(r.nip_supervisor || ''),
-    statusBerkas: (r.status_berkas || 'Belum Dicek') as StatusBerkas,
-    kelengkapanBerkas: (r.kelengkapan_berkas || 'Belum Ada') as KelengkapanBerkas,
-    linkDriveBerkas: String(r.link_drive_berkas || ''),
-    catatanKepsek: String(r.catatan_kepsek || ''),
-    guruEmail: String(r.guru_email || ''),
-  }));
+  const guru: GuruRecord[] = (guruData || []).map((r) => {
+    let parsedCek: Record<string, StatusPoinBerkas> = {};
+    if (r.cek_berkas && typeof r.cek_berkas === 'object' && !Array.isArray(r.cek_berkas)) {
+      parsedCek = r.cek_berkas as Record<string, StatusPoinBerkas>;
+    } else if (typeof r.cek_berkas === 'string' && r.cek_berkas.trim()) {
+      try {
+        parsedCek = JSON.parse(r.cek_berkas) as Record<string, StatusPoinBerkas>;
+      } catch {
+        parsedCek = {};
+      }
+    }
+    return {
+      id: String(r.id),
+      nip: String(r.nip),
+      namaGuru: String(r.nama_guru),
+      mataPelajaran: String(r.mata_pelajaran),
+      tanggalPelaksanaan: String(r.tanggal_pelaksanaan || ''),
+      supervisor: String(r.supervisor || ''),
+      nipSupervisor: String(r.nip_supervisor || ''),
+      statusBerkas: (r.status_berkas || 'Belum Dicek') as StatusBerkas,
+      kelengkapanBerkas: (r.kelengkapan_berkas || 'Belum Ada') as KelengkapanBerkas,
+      linkDriveBerkas: String(r.link_drive_berkas || ''),
+      catatanKepsek: String(r.catatan_kepsek || ''),
+      cekBerkas: parsedCek,
+      guruEmail: String(r.guru_email || ''),
+    };
+  });
 
   const mapAspek = (rows: Array<Record<string, unknown>>, tahap: TahapSupervisi): AspekItem[] =>
     rows
@@ -325,6 +358,7 @@ export async function fetchSupabaseState(): Promise<AppDatabasePayload> {
   return {
     users,
     guru,
+    poinBerkas,
     aspekPersiapan,
     aspekPelaksanaan,
     aspekEvaluasi,
@@ -487,17 +521,62 @@ export async function verifikasiKepsekSb(
   idGuru: string,
   kelengkapanBerkas: KelengkapanBerkas,
   statusBerkas: StatusBerkas,
-  catatanKepsek: string
+  catatanKepsek: string,
+  cekBerkas?: Record<string, StatusPoinBerkas>
 ): Promise<AppDatabasePayload> {
   const sb = getClient();
+  const baseUpdate = {
+    kelengkapan_berkas: kelengkapanBerkas,
+    status_berkas: statusBerkas,
+    catatan_kepsek: catatanKepsek.trim(),
+  };
   const { error } = await sb
     .from('sadig_guru')
     .update({
-      kelengkapan_berkas: kelengkapanBerkas,
-      status_berkas: statusBerkas,
-      catatan_kepsek: catatanKepsek.trim(),
+      ...baseUpdate,
+      ...(cekBerkas ? { cek_berkas: cekBerkas } : {}),
     })
     .eq('id', idGuru);
+  if (error) {
+    // Retry without optional cek_berkas column if user's Supabase schema doesn't have it yet
+    const { error: fallbackErr } = await sb.from('sadig_guru').update(baseUpdate).eq('id', idGuru);
+    if (fallbackErr) throw new Error(fallbackErr.message);
+  }
+  return fetchSupabaseState();
+}
+
+export async function savePoinBerkasSb(
+  input: Partial<PoinBerkasItem>,
+  existingList: PoinBerkasItem[]
+): Promise<AppDatabasePayload> {
+  const sb = getClient();
+  if (input.id) {
+    const { error } = await sb
+      .from('sadig_poin_berkas')
+      .update({
+        nama: (input.nama || '').trim(),
+        deskripsi: (input.deskripsi || '').trim(),
+        order_index: Number(input.orderIndex ?? 1),
+      })
+      .eq('id', input.id);
+    if (error) throw new Error(error.message);
+  } else {
+    const maxOrder = existingList.reduce((m, item) => Math.max(m, item.orderIndex || 0), existingList.length);
+    const newId = `PB${Date.now().toString().slice(-5)}`;
+    const { error } = await sb.from('sadig_poin_berkas').insert({
+      id: newId,
+      nama: (input.nama || '').trim(),
+      deskripsi: (input.deskripsi || '').trim(),
+      order_index: Number(input.orderIndex ?? maxOrder + 1),
+    });
+    if (error) throw new Error(error.message);
+  }
+  return fetchSupabaseState();
+}
+
+export async function deletePoinBerkasSb(id: string): Promise<AppDatabasePayload> {
+  const sb = getClient();
+  const { error } = await sb.from('sadig_poin_berkas').delete().eq('id', id);
   if (error) throw new Error(error.message);
   return fetchSupabaseState();
 }

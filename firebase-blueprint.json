@@ -61,6 +61,7 @@
         "kelengkapanBerkas": { "type": "string", "enum": ["Ada", "Belum Ada"] },
         "linkDriveBerkas": { "type": "string", "maxLength": 500 },
         "catatanKepsek": { "type": "string", "maxLength": 1000 },
+        "cekBerkas": { "type": "object" },
         "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128 },
         "guruEmail": { "type": "string", "maxLength": 200 },
         "supervisorEmail": { "type": "string", "maxLength": 200 },
@@ -74,6 +75,25 @@
         "nipSupervisor", "statusBerkas", "kelengkapanBerkas", "linkDriveBerkas",
         "catatanKepsek", "ownerUid", "guruEmail", "supervisorEmail", "kepsekEmail",
         "pengawasEmail", "createdAt", "updatedAt"
+      ]
+    },
+    "PoinBerkasItem": {
+      "title": "Poin Pemeriksaan Berkas",
+      "description": "Configurable checklist item used by Kepala Sekolah during document verification.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "nama": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "deskripsi": { "type": "string", "maxLength": 500 },
+        "orderIndex": { "type": "number" },
+        "publicCatalog": { "type": "boolean" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id", "nama", "deskripsi", "orderIndex", "publicCatalog",
+        "ownerUid", "createdAt", "updatedAt"
       ]
     },
     "AspekItem": {
@@ -205,6 +225,10 @@
     "/aspek/{aspekId}": {
       "schema": { "$ref": "#/entities/AspekItem" },
       "description": "Supervision instrument aspects across Persiapan, Pelaksanaan, and Evaluasi"
+    },
+    "/poinBerkas/{poinId}": {
+      "schema": { "$ref": "#/entities/PoinBerkasItem" },
+      "description": "Checklist points for Kepala Sekolah document verification"
     },
     "/penilaian/{penilaianId}": {
       "schema": { "$ref": "#/entities/PenilaianItem" },

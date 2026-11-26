@@ -73,6 +73,7 @@ function getMenusForRole(role: UserRole): NavMenuItem[] {
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'guru', label: 'Data Guru', icon: Users },
         { id: 'aspek', label: 'Data Aspek', icon: ListChecks },
+        { id: 'poinBerkas', label: 'Poin Periksa Berkas', icon: FileCheck2 },
         { id: 'nilaiPersiapan', label: 'Nilai Persiapan', icon: FileSpreadsheet },
         { id: 'nilaiPelaksanaan', label: 'Nilai Pelaksanaan', icon: FileSignature },
         { id: 'nilaiEvaluasi', label: 'Nilai Evaluasi', icon: ClipboardList },
@@ -147,20 +148,23 @@ export default function App() {
     }
   }, [data?.pengaturan]);
 
+  const refreshBranding = useCallback(async () => {
+    try {
+      const payload = await fetchLocalOrServerState();
+      setBranding({
+        namaSekolah: payload.pengaturan.namaSekolah,
+        logoKiri: payload.pengaturan.logoKiri || '',
+        logoKanan: payload.pengaturan.logoKanan || '',
+      });
+    } catch {
+      // fallback to cached branding
+    }
+  }, []);
+
   // Fetch initial school logo/branding for LoginView even before user signs in
   useEffect(() => {
-    fetchLocalOrServerState()
-      .then((payload) => {
-        setBranding({
-          namaSekolah: payload.pengaturan.namaSekolah,
-          logoKiri: payload.pengaturan.logoKiri || '',
-          logoKanan: payload.pengaturan.logoKanan || '',
-        });
-      })
-      .catch(() => {
-        // fallback to cached branding
-      });
-  }, []);
+    refreshBranding();
+  }, [refreshBranding]);
 
   const isFirebaseActive = Boolean(firebaseProfile && auth.currentUser);
   const isTrueAdmin =
@@ -589,6 +593,7 @@ export default function App() {
 
               {(resolvedSection === 'guru' ||
                 resolvedSection === 'aspek' ||
+                resolvedSection === 'poinBerkas' ||
                 resolvedSection === 'users' ||
                 resolvedSection === 'settings') && (
                 <AdminMasterViews

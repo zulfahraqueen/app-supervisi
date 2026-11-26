@@ -12,12 +12,17 @@ import {
   XCircle,
   Image as ImageIcon,
   RotateCcw,
+  Database,
+  Link2,
+  Unlink,
+  Copy,
 } from 'lucide-react';
 import type {
   AppDatabasePayload,
   AspekItem,
   GuruRecord,
   PengaturanSekolah,
+  PoinBerkasItem,
   TahapSupervisi,
   TargetMapelAspek,
   TipePenilaianAspek,
@@ -28,6 +33,7 @@ import {
   DEFAULT_BK_ASPEK_EVALUASI,
   DEFAULT_BK_ASPEK_PELAKSANAAN,
   DEFAULT_BK_ASPEK_PERSIAPAN,
+  DEFAULT_POIN_BERKAS,
   resolveAspekTargetMapel,
 } from '../types';
 import { PemdaCrestSvg, TutWuriCrestSvg } from './SchoolCrest';
@@ -36,15 +42,24 @@ import {
   deleteAspekClient,
   deleteDirectoryUserClient,
   deleteGuruClient,
+  deletePoinBerkasClient,
   saveAspekClient,
   saveDirectoryUserClient,
   saveGuruClient,
   savePengaturanClient,
+  savePoinBerkasClient,
   seedBkTemplateClient,
 } from '../services/sadigClient';
+import {
+  getGasWebAppUrl,
+  isGasConfigured,
+  setGasWebAppUrl,
+  testGasConnection,
+} from '../services/gasDb';
+import fixedKodeGs from '../../gas/Kode.gs?raw';
 
 interface AdminMasterProps {
-  section: 'guru' | 'aspek' | 'users' | 'settings';
+  section: 'guru' | 'aspek' | 'poinBerkas' | 'users' | 'settings';
   data: AppDatabasePayload;
   ownerUid: string;
   onActionSuccess: (updated: AppDatabasePayload | null, message: string) => Promise<void>;
@@ -69,12 +84,20 @@ export function AdminMasterViews({
   const [aspekModal, setAspekModal] = useState(false);
   const [aspekForm, setAspekForm] = useState<Partial<AspekItem>>({});
 
+  // === POIN PERIKSA BERKAS STATE ===
+  const [poinModal, setPoinModal] = useState(false);
+  const [poinForm, setPoinForm] = useState<Partial<PoinBerkasItem>>({});
+
   // === USERS STATE ===
   const [userModal, setUserModal] = useState(false);
   const [userForm, setUserForm] = useState<Partial<UserAccount> & { oldUsername?: string }>({});
 
   // === PENGATURAN STATE ===
   const [settingsForm, setSettingsForm] = useState<PengaturanSekolah>(data.pengaturan);
+  const [gasUrlInput, setGasUrlInput] = useState(() => getGasWebAppUrl());
+  const [gasConnected, setGasConnected] = useState(() => isGasConfigured());
+  const [gasBusy, setGasBusy] = useState(false);
+  const [gasStatus, setGasStatus] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -286,6 +309,57 @@ export function AdminMasterViews({
     }
   }
 
+  // --- POIN PERIKSA BERKAS HANDLERS ---
+  const poinBerkasList = [
+    ...(data.poinBerkas && data.poinBerkas.length > 0 ? data.poinBerkas : DEFAULT_POIN_BERKAS),
+  ].sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0));
+
+  function openPoinModal(item?: PoinBerkasItem) {
+    if (item) {
+      setPoinForm({ ...item });
+    } else {
+      const nextOrder =
+        poinBerkasList.reduce((m, p) => Math.max(m, Number(p.orderIndex ?? 0)), 0) + 1;
+      setPoinForm({
+        nama: '',
+        deskripsi: '',
+        orderIndex: nextOrder,
+      });
+    }
+    setPoinModal(true);
+  }
+
+  async function submitPoin(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const updated = await savePoinBerkasClient(poinForm, poinBerkasList, ownerUid);
+      setPoinModal(false);
+      await onActionSuccess(
+        updated,
+        poinForm.id
+          ? 'Poin pemeriksaan berkas berhasil diperbarui.'
+          : 'Poin pemeriksaan berkas berhasil ditambahkan.'
+      );
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Gagal menyimpan poin pemeriksaan berkas.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removePoin(id: string) {
+    setBusy(true);
+    try {
+      const updated = await deletePoinBerkasClient(id, ownerUid);
+      await onActionSuccess(updated, 'Poin pemeriksaan berkas berhasil dihapus.');
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Gagal menghapus poin pemeriksaan berkas.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // --- USERS HANDLERS ---
   function openUserModal(u?: UserAccount) {
     if (u) {
@@ -386,6 +460,68 @@ export function AdminMasterViews({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleConnectGas(e: React.FormEvent) {
+    e.preventDefault();
+    const cleaned = gasUrlInput.trim();
+    if (!cleaned) {
+      onError('Masukkan URL Web App Google Apps Script terlebih dahulu.');
+      return;
+    }
+    setGasBusy(true);
+    setGasStatus('');
+    try {
+      const check = await testGasConnection(cleaned);
+      if (!check.success) {
+        setGasStatus(check.message);
+        onError(check.message);
+        return;
+      }
+      setGasWebAppUrl(cleaned);
+      setGasConnected(true);
+      const label = check.spreadsheetName || check.namaSekolah || 'Google Sheets';
+      const msg = `Terhubung ke Spreadsheet (${label}).`;
+      setGasStatus(msg);
+      await onActionSuccess(null, msg);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Gagal terhubung ke Google Apps Script.';
+      setGasStatus(msg);
+      onError(msg);
+    } finally {
+      setGasBusy(false);
+    }
+  }
+
+  async function handleDisconnectGas() {
+    setGasWebAppUrl('');
+    setGasUrlInput('');
+    setGasConnected(false);
+    setGasStatus('Koneksi Google Apps Script diputuskan.');
+    await onActionSuccess(null, 'Koneksi Google Sheets diputuskan.');
+  }
+
+  function handleCopyKodeGs() {
+    navigator.clipboard
+      .writeText(fixedKodeGs)
+      .then(() => {
+        onActionSuccess(data, 'Kode.gs yang sudah diperbaiki disalin ke clipboard.');
+      })
+      .catch(() => {
+        onError('Gagal menyalin ke clipboard. Gunakan tombol Unduh Kode.gs.');
+      });
+  }
+
+  function handleDownloadKodeGs() {
+    const blob = new Blob([fixedKodeGs], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'Kode.gs';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   // ================= RENDER SECTIONS =================
@@ -914,6 +1050,169 @@ export function AdminMasterViews({
     );
   }
 
+  if (section === 'poinBerkas') {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">
+              Poin Pemeriksaan Berkas (Kepala Sekolah)
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Kelola daftar poin dokumen (seperti RPP, Modul Ajar, ATP, LKPD) yang diperiksa Kepala
+              Sekolah pada tahap Periksa &amp; Putuskan.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => openPoinModal()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold whitespace-nowrap"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Tambah Poin Berkas</span>
+          </button>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                  <th className="py-3 px-4 w-20">Urutan</th>
+                  <th className="py-3 px-4 w-24">ID</th>
+                  <th className="py-3 px-4">Nama Poin Berkas</th>
+                  <th className="py-3 px-4">Keterangan / Deskripsi</th>
+                  <th className="py-3 px-4 text-right w-28">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 text-sm">
+                {poinBerkasList.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 px-4 text-center text-slate-500">
+                      Belum ada poin pemeriksaan berkas. Klik &ldquo;Tambah Poin Berkas&rdquo; untuk
+                      membuat daftar periksa.
+                    </td>
+                  </tr>
+                ) : (
+                  poinBerkasList.map((p, idx) => (
+                    <tr key={p.id} className="hover:bg-slate-50/70 align-top">
+                      <td className="py-3 px-4 font-mono-tabular text-xs font-semibold text-slate-600">
+                        {p.orderIndex ?? idx + 1}
+                      </td>
+                      <td className="py-3 px-4 font-mono-tabular text-xs font-semibold text-emerald-700">
+                        {p.id}
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-900">{p.nama}</td>
+                      <td className="py-3 px-4 text-xs text-slate-600">{p.deskripsi || '-'}</td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openPoinModal(p)}
+                            aria-label={`Edit ${p.nama}`}
+                            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => removePoin(p.id)}
+                            aria-label={`Hapus ${p.nama}`}
+                            className="p-1.5 rounded-lg border border-slate-200 text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {poinModal && (
+          <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
+            <div className="bg-white border border-slate-200 rounded-xl w-full max-w-md p-6">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
+                <h4 className="text-base font-bold text-slate-900">
+                  {poinForm.id ? 'Edit Poin Pemeriksaan Berkas' : 'Tambah Poin Pemeriksaan Berkas'}
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setPoinModal(false)}
+                  className="text-slate-400 hover:text-slate-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <form onSubmit={submitPoin} className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Urutan Tampil
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    required
+                    value={poinForm.orderIndex ?? 1}
+                    onChange={(e) =>
+                      setPoinForm({ ...poinForm, orderIndex: Number(e.target.value) })
+                    }
+                    className="w-full px-3 py-2 text-sm font-mono-tabular border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Nama Poin Berkas
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={poinForm.nama || ''}
+                    onChange={(e) => setPoinForm({ ...poinForm, nama: e.target.value })}
+                    placeholder="Contoh: RPP, Modul Ajar, ATP, LKPD"
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Keterangan / Deskripsi (Opsional)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={poinForm.deskripsi || ''}
+                    onChange={(e) => setPoinForm({ ...poinForm, deskripsi: e.target.value })}
+                    placeholder="Penjelasan singkat kelengkapan dokumen yang diperiksa Kepala Sekolah..."
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setPoinModal(false)}
+                    className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
+                  >
+                    {busy ? 'Menyimpan...' : 'Simpan Poin'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (section === 'users') {
     const roles: UserRole[] = [
       'Admin',
@@ -1412,6 +1711,101 @@ export function AdminMasterViews({
               <Save className="w-4 h-4" />
               <span>{busy ? 'Menyimpan...' : 'Simpan Pengaturan'}</span>
             </button>
+          </div>
+        </form>
+      </div>
+
+      {/* KONEKSI GOOGLE APPS SCRIPT (GOOGLE SHEETS) */}
+      <div className="mt-6 bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Database className="w-4 h-4 text-emerald-600" />
+              <h3 className="text-base font-bold text-slate-900">
+                Koneksi Database Google Sheets (Apps Script)
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Hubungkan aplikasi ini langsung ke Google Spreadsheet melalui URL Web App{' '}
+              <span className="font-mono-tabular text-slate-700">Kode.gs</span> yang sudah diperbaiki.
+            </p>
+          </div>
+          <span
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+              gasConnected
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-slate-50 text-slate-600 border-slate-200'
+            }`}
+          >
+            {gasConnected ? 'Terhubung ke Google Sheets' : 'Mode Lokal / Server'}
+          </span>
+        </div>
+
+        <form onSubmit={handleConnectGas} className="space-y-3">
+          <div>
+            <label
+              htmlFor="admin-gas-url"
+              className="block text-xs font-semibold text-slate-700 mb-1"
+            >
+              URL Web App Google Apps Script
+            </label>
+            <input
+              id="admin-gas-url"
+              type="url"
+              value={gasUrlInput}
+              onChange={(e) => setGasUrlInput(e.target.value)}
+              placeholder="https://script.google.com/macros/s/.../exec"
+              className="w-full px-3 py-2 text-xs font-mono-tabular border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
+            />
+          </div>
+
+          {gasStatus && (
+            <div className="text-xs rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
+              {gasStatus}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopyKodeGs}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Salin Kode.gs (Fix)</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadKodeGs}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Unduh Kode.gs</span>
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {gasConnected && (
+                <button
+                  type="button"
+                  disabled={gasBusy}
+                  onClick={handleDisconnectGas}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-xs font-semibold text-red-700 disabled:opacity-50"
+                >
+                  <Unlink className="w-3.5 h-3.5" />
+                  <span>Putuskan</span>
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={gasBusy}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                <span>{gasBusy ? 'Menguji Koneksi...' : 'Uji & Hubungkan'}</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>

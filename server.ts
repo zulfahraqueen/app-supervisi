@@ -9,7 +9,9 @@ import type {
   GuruRecord,
   PengaturanSekolah,
   PenilaianItem,
+  PoinBerkasItem,
   RekapGuru,
+  StatusPoinBerkas,
   TahapSummary,
   TahapSupervisi,
   TargetMapelAspek,
@@ -21,6 +23,7 @@ import {
   DEFAULT_BK_ASPEK_EVALUASI,
   DEFAULT_BK_ASPEK_PELAKSANAAN,
   DEFAULT_BK_ASPEK_PERSIAPAN,
+  DEFAULT_POIN_BERKAS,
   getAspekForGuru,
   hitungPredikat,
   resolveAspekTargetMapel,
@@ -29,6 +32,7 @@ import {
 interface SadigDb {
   users: UserAccount[];
   guru: GuruRecord[];
+  poinBerkas: PoinBerkasItem[];
   aspekPersiapan: AspekItem[];
   aspekPelaksanaan: AspekItem[];
   aspekEvaluasi: AspekItem[];
@@ -376,9 +380,12 @@ function createSeedDatabase(): SadigDb {
     logoKanan: '',
   };
 
+  const poinBerkas: PoinBerkasItem[] = DEFAULT_POIN_BERKAS.map((p) => ({ ...p }));
+
   return {
     users,
     guru,
+    poinBerkas,
     aspekPersiapan,
     aspekPelaksanaan,
     aspekEvaluasi,
@@ -418,6 +425,10 @@ function loadDb(): SadigDb {
     }));
 
     let migrated = false;
+    if (!Array.isArray(parsed.poinBerkas) || parsed.poinBerkas.length === 0) {
+      parsed.poinBerkas = DEFAULT_POIN_BERKAS.map((p) => ({ ...p }));
+      migrated = true;
+    }
     if (!parsed.aspekPersiapan.some((a) => resolveAspekTargetMapel(a) === 'BK')) {
       parsed.aspekPersiapan.push(...DEFAULT_BK_ASPEK_PERSIAPAN.map((a) => ({ ...a })));
       migrated = true;
@@ -726,7 +737,9 @@ async function startServer() {
     }
     db.guru[idx].linkDriveBerkas = linkDriveBerkas.trim();
     db.guru[idx].statusBerkas = 'Belum Dicek';
+    db.guru[idx].kelengkapanBerkas = 'Belum Ada';
     db.guru[idx].catatanKepsek = '';
+    db.guru[idx].cekBerkas = {};
     saveDb(db);
     res.json({
       success: true,
@@ -736,11 +749,12 @@ async function startServer() {
   });
 
   app.post('/api/kepsek/verifikasi', (req, res) => {
-    const { idGuru, kelengkapanBerkas, statusBerkas, catatanKepsek } = req.body as {
+    const { idGuru, kelengkapanBerkas, statusBerkas, catatanKepsek, cekBerkas } = req.body as {
       idGuru?: string;
       kelengkapanBerkas?: 'Ada' | 'Belum Ada';
       statusBerkas?: 'Disetujui' | 'Ditolak' | 'Belum Dicek';
       catatanKepsek?: string;
+      cekBerkas?: Record<string, StatusPoinBerkas>;
     };
     const db = loadDb();
     const idx = db.guru.findIndex((g) => g.id === idGuru);
@@ -758,6 +772,15 @@ async function startServer() {
     db.guru[idx].kelengkapanBerkas = kelengkapanBerkas || db.guru[idx].kelengkapanBerkas;
     db.guru[idx].statusBerkas = statusBerkas || db.guru[idx].statusBerkas;
     db.guru[idx].catatanKepsek = catatanKepsek?.trim() || '';
+    if (cekBerkas && typeof cekBerkas === 'object') {
+      const cleanedCek: Record<string, StatusPoinBerkas> = {};
+      Object.entries(cekBerkas).forEach(([k, v]) => {
+        if (v === 'Ada' || v === 'Tidak Ada') {
+          cleanedCek[k] = v;
+        }
+      });
+      db.guru[idx].cekBerkas = cleanedCek;
+    }
     saveDb(db);
     res.json({
       success: true,
@@ -950,6 +973,69 @@ async function startServer() {
     res.json({ success: true, message: `Aspek ${tahap} berhasil dihapus.`, data: buildPayload(db) });
   });
 
+  app.post('/api/poin-berkas', (req, res) => {
+    const { id, nama, deskripsi, orderIndex } = req.body as Partial<PoinBerkasItem>;
+    if (!nama?.trim()) {
+      res.status(400).json({ success: false, message: 'Nama poin pemeriksaan berkas wajib diisi.' });
+      return;
+    }
+    const db = loadDb();
+    if (!Array.isArray(db.poinBerkas)) {
+      db.poinBerkas = DEFAULT_POIN_BERKAS.map((p) => ({ ...p }));
+    }
+    if (id) {
+      const idx = db.poinBerkas.findIndex((p) => p.id === id);
+      if (idx === -1) {
+        res.status(404).json({ success: false, message: 'Poin pemeriksaan berkas tidak ditemukan.' });
+        return;
+      }
+      db.poinBerkas[idx] = {
+        id,
+        nama: nama.trim(),
+        deskripsi: deskripsi?.trim() || '',
+        orderIndex:
+          orderIndex !== undefined && orderIndex !== null
+            ? Number(orderIndex)
+            : Number(db.poinBerkas[idx].orderIndex ?? idx + 1),
+      };
+    } else {
+      const maxNum = db.poinBerkas.reduce((max, p) => {
+        const n = parseInt(p.id.replace(/\D/g, ''), 10);
+        return Number.isNaN(n) ? max : Math.max(max, n);
+      }, 0);
+      const maxOrder = db.poinBerkas.reduce(
+        (max, p) => Math.max(max, Number(p.orderIndex ?? 0)),
+        db.poinBerkas.length
+      );
+      db.poinBerkas.push({
+        id: `PB${maxNum + 1}`,
+        nama: nama.trim(),
+        deskripsi: deskripsi?.trim() || '',
+        orderIndex:
+          orderIndex !== undefined && orderIndex !== null ? Number(orderIndex) : maxOrder + 1,
+      });
+    }
+    db.poinBerkas.sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0));
+    saveDb(db);
+    res.json({
+      success: true,
+      message: 'Poin pemeriksaan berkas berhasil disimpan.',
+      data: buildPayload(db),
+    });
+  });
+
+  app.delete('/api/poin-berkas/:id', (req, res) => {
+    const id = req.params.id;
+    const db = loadDb();
+    db.poinBerkas = (db.poinBerkas || []).filter((p) => p.id !== id);
+    saveDb(db);
+    res.json({
+      success: true,
+      message: 'Poin pemeriksaan berkas berhasil dihapus.',
+      data: buildPayload(db),
+    });
+  });
+
   app.post('/api/users', (req, res) => {
     const { username, password, nama, role, nip, oldUsername } = req.body as Partial<UserAccount> & {
       oldUsername?: string;
@@ -1014,9 +1100,62 @@ async function startServer() {
     res.json({ success: true, message: 'Database contoh berhasil dipulihkan.', data: buildPayload(seed) });
   });
 
+  app.post('/api/gas-proxy', async (req, res) => {
+    try {
+      const { url, method, payload } = req.body as {
+        url?: string;
+        method?: string;
+        payload?: unknown;
+      };
+      if (!url || typeof url !== 'string') {
+        res.status(400).json({ success: false, message: 'URL Apps Script wajib diisi.' });
+        return;
+      }
+      let parsed: URL;
+      try {
+        parsed = new URL(url.trim());
+      } catch {
+        res.status(400).json({ success: false, message: 'Format URL Apps Script tidak valid.' });
+        return;
+      }
+      const allowedHost =
+        parsed.protocol === 'https:' &&
+        (parsed.hostname === 'script.google.com' ||
+          parsed.hostname.endsWith('.googleusercontent.com'));
+      if (!allowedHost) {
+        res.status(400).json({
+          success: false,
+          message: 'Host tidak diizinkan. Gunakan URL Web App https://script.google.com/...',
+        });
+        return;
+      }
+
+      const upperMethod = String(method || 'GET').toUpperCase() === 'POST' ? 'POST' : 'GET';
+      const upstreamRes = await fetch(parsed.toString(), {
+        method: upperMethod,
+        headers:
+          upperMethod === 'POST'
+            ? { 'Content-Type': 'text/plain;charset=utf-8' }
+            : undefined,
+        body: upperMethod === 'POST' ? JSON.stringify(payload ?? {}) : undefined,
+        redirect: 'follow',
+      });
+      const text = await upstreamRes.text();
+      res.status(upstreamRes.status).type('application/json').send(text);
+    } catch (err) {
+      res.status(502).json({
+        success: false,
+        message:
+          err instanceof Error
+            ? `Gagal menghubungi Google Apps Script: ${err.message}`
+            : 'Gagal menghubungi Google Apps Script.',
+      });
+    }
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, allowedHosts: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
